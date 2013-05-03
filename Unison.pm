@@ -1,25 +1,15 @@
 package Unison;
-use Dirs;
-use Log;
+use PerlShareCommon::Dirs;
+use PerlShareCommon::Log;
 use strict;
 
 sub new() {
   my $class = shift;
-  my $unison_profile = shift;
   my $obj = {};
-  
-  $obj->{profile} = $unison_profile;
   
   bless $obj, $class;
   
   return $obj;
-}
-
-sub profile_file() {
-  my $self = shift;
-  my $unison_dir = unison_dir();
-  my $profile = $self->{profile};
-  return "$unison_dir/$profile.prf";
 }
 
 sub has_unison() {
@@ -33,7 +23,7 @@ sub version() {
   my $ssh_user = shift;
   my $ssh_port = shift;
   
-  my $cmd = "unison -version";
+  my $cmd = $self->unison_cmd("", "text"," -version");
   if (defined($ssh_server)) {
     my $user = "";
     if (defined($ssh_user)) { $user = "$ssh_user".'@'; }
@@ -71,9 +61,57 @@ sub version() {
 }
 
 sub run() {
+  my $self = shift;
+  my $share = shift;
+  my $first_time = shift;
+  
+  if (not(defined($first_time))) { $first_time = 0; }
+  
+  my $ignore_archives = "";
+  if ($first_time) {
+    $ignore_archives = "-ignorearchives";
+  }
+
+  my $args = "$ignore_archives -batch -log -dumbtty default.prf";
+  my $cmd = $self->unison_cmd($share, "text", $args);
+  
+  open my $fh, "$cmd 2>&1 |";
+  while (my $line=<$fh>) {
+    log_info($line);
+  }
+  close $fh;
+  my $exit_code = $?;
+  
+  if ($exit_code == 0) {
+    log_info("exitcode: $exit_code");
+  } else {
+    log_error("exitcode: $exit_code");
+  }
+  
+  return $exit_code;
 }
 
 sub run_gui() {
+  my $self = shift;
+  my $share = shift;
+  my $args = "default.prf";
+  
+  my $cmd = $self->unison_cmd($share, "graphic", $args);
+  
+  open my $fh, "$cmd 2>&1 |";
+  while (my $line=<$fh>) {
+    log_info($line);
+  }
+  close $fh;
+  my $exit_code = $?;
+  
+  if ($exit_code == 0) {
+    log_info("exitcode: $exit_code");
+  } else {
+    log_error("exitcode: $exit_code");
+  }
+  
+  return $exit_code;
 }
 
 sub server_version() {
@@ -84,7 +122,22 @@ sub server_version() {
   }
 }
 
+sub unison_cmd() {
+  my $self = shift;
+  my $share = shift;
+  my $ui = shift;
+  my $cmd = shift;
 
+  my $unison = "unison-gtk";
+  if ($^O eq "darwin") { $unison = "unison"; }
+
+  my $cmd = "UNISON='".unison_dir($share)."' $unison -ui $ui $cmd";
+  log_info("Unison: $cmd");
+  return $cmd;
+}
+
+
+1;
 =pod
 =head1 Unison
 
@@ -94,4 +147,5 @@ This package controls a unison executable and a unison configuration file.
 It does this and only this. 
 
 =end
+
 

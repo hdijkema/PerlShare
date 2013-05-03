@@ -55,7 +55,7 @@ Glib::Timeout->add(100, sub {
 
       if ($code > 0) {
         $shares->associate($share, "code", $code);
-      }
+      } 
       $status_icon->set_collision($code > 0);
   
       if ($state eq "starting") {
@@ -63,6 +63,7 @@ Glib::Timeout->add(100, sub {
       } elsif ($state eq "running") {
         $status_icon->activity();
       } elsif ($state eq "done") {
+        $shares->associate($share, "code", $code);
         my @S = $shares->get_shares();
         
         my $red = 0;

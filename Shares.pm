@@ -6,8 +6,9 @@ use POSIX qw(:fcntl_h);
 use Net::SSH2;  
 use PerlShareCommon::Dirs;
 use PerlShareCommon::Log;
-use Unison;
 use PerlShareCommon::Str;
+use PerlShareCommon::WatchDirectoryTree;
+use Unison;
 
 sub new() {
   my $class = shift;
@@ -217,6 +218,7 @@ sub create_share() {
     print $fh "fat = true\n";
     print $fh "dontchmod = false\n";
     print $fh "perms = 0\n";
+    print $fh "servercmd = /usr/local/bin/unison_umask\n";
     close($fh);
     
     $self->{message} = "Success";
@@ -374,10 +376,35 @@ sub synchronizer() {
       while ( 1 ) {
         my @S = $shares->get_shares();
         foreach my $share (@S) {
+          tie my %cfg, 'PerlShareCommon::Cfg', READ => global_conf();
+          my $local_share = $cfg{data}{$share}{local};
+          untie %cfg;
+          my $dir = perlshare_dir($local_share);
+          my $watcher = $shares->get_assoc($share, "watcher");
+          if (defined($watcher)) {
+            if ($watcher->get_directory_changes()) {
+              open my $fh, "<$dir/.count";
+              my $cnt = <$fh>;
+              log_info("count = $cnt");
+              trim($cnt);
+              close($fh);
+              $cnt += 1;
+              open $fh, ">$dir/.count";
+              print $fh "$cnt\n";
+              close($fh);
+            }
+          } else {
+            $watcher = new PerlShareCommon::WatchDirectoryTree($dir);
+            $shares->associate($share, "watcher", $watcher);
+          }
+          
           my ($sync, $remote_count, $local_count) = $shares->check_last_sync($share);
           if ($sync || $first_time) {
             $shares->sync_now($share, $cb, $remote_count, $local_count);
           }
+          
+          # flush watcher after sync
+          $watcher->get_directory_changes();
         }
         $first_time = 0;
         sleep(10);

@@ -13,12 +13,12 @@ sub new() {
 	$obj->{popup_menu} = $menu;
 
 	# Create pixbufs 
-	for my $i qw(0 1 2 3 4 5 6 7 8) {
+	for my $i (qw(0 1 2 3 4 5 6 7 8)) {
 		$obj->{"icn_active_$i"}=Gtk2::Gdk::Pixbuf->new_from_file("$img_dir/tray_active_$i.png");
 	}
 	$obj->{"icn_inactive"}=Gtk2::Gdk::Pixbuf->new_from_file("$img_dir/tray_inactive.png");
 	
-	for my $i qw(0 1 2 3 4 5 6 7 8) {
+	for my $i (qw(0 1 2 3 4 5 6 7 8)) {
 		$obj->{"icn_collision_$i"}=Gtk2::Gdk::Pixbuf->new_from_file("$img_dir/tray_collision_$i.png");
 	}
 	$obj->{"icn_collision"}=Gtk2::Gdk::Pixbuf->new_from_file("$img_dir/tray_collision.png");
@@ -26,6 +26,7 @@ sub new() {
 	my $use_statusicon = 1;
 	my $use_appindicator = 0;
 	if ($kind eq "appindicator") {
+	  require Gtk2::AppIndicator;
 	  $use_statusicon = 0;
 	  $use_appindicator = 1;
 	}
@@ -45,7 +46,7 @@ sub new() {
 		my $status_icon=Gtk2::AppIndicator->new("PerlShare","tray_active_0");
 		
 		$status_icon->set_icon_theme_path($img_dir);
-		for my $i qw(0 1 2 3 4 5 6 7 8) {
+		for my $i (qw(0 1 2 3 4 5 6 7 8)) {
 			$obj->{"icn_active_$i"}="tray_active_$i";
 			$obj->{"icn_collision_$i"}="tray_collision_$i";
 		}
@@ -123,6 +124,16 @@ sub show_menu() {
   my $self = shift;
   my $menu = $self->{popup_menu};
   $menu->popup(undef,undef,undef,undef,0,0);
+}
+
+sub set_menu() {
+  my $self = shift;
+  my $menu = shift;
+  my $menu = $self->{popup_menu} = $menu;
+  if ($self->{icon_type} eq "indicator") {
+    my $si = $self->{icon};
+    $si->set_menu($menu);
+  }
 }
 
 1;

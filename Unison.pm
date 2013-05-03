@@ -20,6 +20,7 @@ sub has_unison() {
 sub version() {
   my $self = shift;
   my $ssh_server = shift;
+  my $ssh_keyfile = shift;
   my $ssh_user = shift;
   my $ssh_port = shift;
   
@@ -29,7 +30,7 @@ sub version() {
     if (defined($ssh_user)) { $user = "$ssh_user".'@'; }
     my $port = "";
     if (defined($ssh_port)) { $port = " -p ".$ssh_port; }
-    $cmd = "ssh -o \"StrictHostKeyChecking no\" $user$ssh_server$port unison -version";
+    $cmd = "ssh -i \"$ssh_keyfile\" -o \"StrictHostKeyChecking no\" $user$ssh_server$port unison -version";
   }
     
   open my $fh, "$cmd 2>&1 |";
@@ -63,6 +64,7 @@ sub version() {
 sub run() {
   my $self = shift;
   my $share = shift;
+  my $progress_cb = shift;
   my $first_time = shift;
   
   if (not(defined($first_time))) { $first_time = 0; }
@@ -74,10 +76,12 @@ sub run() {
 
   my $args = "$ignore_archives -batch -log -dumbtty default.prf";
   my $cmd = $self->unison_cmd($share, "text", $args);
+  $progress_cb->($share, "starting", -1);
   
   open my $fh, "$cmd 2>&1 |";
   while (my $line=<$fh>) {
     log_info($line);
+    $progress_cb->($share, "running", -1);
   }
   close $fh;
   my $exit_code = $?;
@@ -87,6 +91,7 @@ sub run() {
   } else {
     log_error("exitcode: $exit_code");
   }
+  $progress_cb->($share, "done", $exit_code);
   
   return $exit_code;
 }

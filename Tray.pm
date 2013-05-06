@@ -118,7 +118,7 @@ sub end_sync() {
 	my $a="inactive";
 	if ($self->{collision}) {
 		$a="collision";
-	} else if ($self->{disconnected}) {
+	} elsif ($self->{disconnected}) {
 	  $a="gray";
 	}
 	my $pb=$self->{"icn_".$a};

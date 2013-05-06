@@ -57,8 +57,10 @@ Glib::Timeout->add(100, sub {
         $shares->associate($share, "code", $code);
       } elsif ($state eq "disconnected") {
         $shares->associate($share, "code", -1);
+        $code = -1;
       } elsif ($state eq "connected") {
         $shares->associate($share, "code", 0);
+        $code = 0;
       }
       $status_icon->set_collision($code > 0);
   

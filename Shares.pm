@@ -365,11 +365,16 @@ sub synchronizer() {
           }
           
           my ($sync, $remote_count, $local_count) = $shares->check_last_sync($share);
-          if ($sync == -1) { # Cannot connect
+          if ($sync == -1) { 
+            # We cannot 
             $cb->($share, "disconnected", -1);
           } elsif ($sync || $first_time) {
+            # we can connect, and need to sync
             $cb->($share, "connected", 0);
             $shares->sync_now($share, $cb, $remote_count, $local_count);
+          } else {
+            # we can connect, but don't need to sync
+            $cb->($share, "connected", 0);
           }
           
           # flush watcher after sync

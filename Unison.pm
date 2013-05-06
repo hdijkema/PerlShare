@@ -1,7 +1,8 @@
 package Unison;
+use strict;
 use PerlShareCommon::Dirs;
 use PerlShareCommon::Log;
-use strict;
+use PerlShareCommon::Constants;
 
 sub new() {
   my $class = shift;
@@ -22,19 +23,28 @@ sub version() {
   my $ssh_server = shift;
   my $ssh_keyfile = shift;
   my $ssh_user = shift;
-  my $ssh_port = shift;
+  
+  my $user_agent = user_agent(); 
   
   my $cmd = $self->unison_cmd("", "text"," -version");
   if (defined($ssh_server)) {
     my $user = "";
-    if (defined($ssh_user)) { $user = "$ssh_user".'@'; }
-    my $port = "";
-    if (defined($ssh_port)) { $port = " -p ".$ssh_port; }
-    $cmd = "ssh -i \"$ssh_keyfile\" -o \"StrictHostKeyChecking no\" $user$ssh_server$port unison -version";
+    if (defined($ssh_user)) { $user = "$ssh_user"; }
+
+    $cmd = "ssh -i \"$ssh_keyfile\" ".
+               "-o 'StrictHostKeyChecking no' ".
+               "-o 'ProxyCommand proxytunnel -q -p $ssh_server:80 -d localhost:22 -H \"$user_agent\"' ".
+               "-o 'ProtocolKeepAlives 5' ".
+               "-l $user $ssh_server ".
+               "unison -version";
+    log_info($cmd);
   }
     
   open my $fh, "$cmd 2>&1 |";
-  my $line=<$fh>;
+  my $line;
+  while ($line = <$fh>) {
+    last, if ($line=~/^unison version/);
+  }
   close $fh;
   
   $line =~ s/^\s*//;

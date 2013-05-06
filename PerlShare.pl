@@ -50,35 +50,45 @@ my $data_queue = new Thread::Queue();
 Glib::Timeout->add(100, sub {
     my $data = $data_queue->dequeue_nb();
     while (defined($data) && $data ne "quit") {
-      $data = $data_queue->dequeue_nb();
       my ($share, $state, $code) = split(/,/,$data);
 
+      #log_info("share = $share, state = $state, code = $code");
       if ($code > 0) {
         $shares->associate($share, "code", $code);
-      } 
+      } elsif ($state eq "disconnected") {
+        $shares->associate($share, "code", -1);
+      } elsif ($state eq "connected") {
+        $shares->associate($share, "code", 0);
+      }
       $status_icon->set_collision($code > 0);
   
       if ($state eq "starting") {
         $status_icon->begin_sync();
       } elsif ($state eq "running") {
         $status_icon->activity();
-      } elsif ($state eq "done") {
+      } elsif ($state eq "done" || $state eq "disconnected" || $state eq "connected") {
         $shares->associate($share, "code", $code);
-        my @S = $shares->get_shares();
         
-        my $red = 0;
-        foreach my $sharename (@S) {
-          my $code = $shares->get_assoc($sharename, "code");
-          log_info("$sharename - code = $code");
-          if ($code > 0) { $red = 1; }
+        if ($state eq "done") {
+          my @S = $shares->get_shares();
+          
+          my $red = 0;
+          foreach my $sharename (@S) {
+            my $code = $shares->get_assoc($sharename, "code");
+            log_info("$sharename - code = $code");
+            if ($code > 0) { $red = 1; }
+          }
+          $status_icon->set_collision($red);
+          $status_icon->end_sync();
         }
-        $status_icon->set_collision($red);
-        $status_icon->end_sync();
         
         my $image_menu_item = $shares->get_assoc($share,"menu-item");
-        my $img = ($code > 0) ? image_nok() : image_ok();
+        my $img = ($code > 0) ? image_nok() :
+                    (($code < 0) ? image_disconnected() : image_ok());
         $image_menu_item->set_image($img);
       }
+      
+      $data = $data_queue->dequeue_nb();
     }
     if ($data eq "quit") {
       return 0;
@@ -117,13 +127,16 @@ sub create_menu($$$) {
     my $submenu = Gtk2::Menu->new();
     my $mnu_drop = Gtk2::MenuItem->new("_Drop share");
     my $mnu_web = Gtk2::MenuItem->new("_Website");
-    my $mnu_col = Gtk2::MenuItem->new("_Resolve collision");
+    #my $mnu_col = Gtk2::MenuItem->new("_Resolve collision");
+    my $mnu_map = Gtk2::MenuItem->new("_Open folder");
     
+    $submenu->append($mnu_map);
     $submenu->append($mnu_col);
     $submenu->append($mnu_web);
     $submenu->append(Gtk2::SeparatorMenuItem->new());
     $submenu->append($mnu_drop);
-    $mnu_col->signal_connect("activate", sub { share_collision($shares,$share); });
+    $mnu_map->signal_connect("activate", sub { open_share($shares,$share); });
+    #$mnu_col->signal_connect("activate", sub { share_collision($shares,$share); });
     $mnu_web->signal_connect("activate", sub { share_web($shares,$share); });
     $mnu_drop->signal_connect("activate", sub { share_drop($shares,$share); });
     
@@ -152,6 +165,10 @@ sub image_ok() {
 
 sub image_nok() {
   return Gtk2::Image->new_from_file(images_dir()."/tray_collision.png");
+}
+
+sub image_disconnected() {
+  return Gtk2::Image->new_from_file(images_dir()."/tray_gray.png");
 }
 
 sub quit($) {
@@ -265,6 +282,15 @@ sub share_collision($) {
   $thr->detach();
 }
 
+sub open_share($$) {
+  my $shares = shift;
+  my $share = shift;
+  
+  my $dir = perlshare_dir($share);
+  
+  system("xdg-open $dir"); 
+}
+
 sub sync_now($$) {
   my $shares = shift;
   my $share = shift;
@@ -284,7 +310,7 @@ sub report_cb($$$$) {
   my $state = shift;
   my $code = shift;
   my $data_queue = shift;
-
+  
   $data_queue->enqueue("$sharename,$state,$code");
 }
 

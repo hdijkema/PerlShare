@@ -7,6 +7,7 @@ use Net::SSH2;
 use PerlShareCommon::Dirs;
 use PerlShareCommon::Log;
 use PerlShareCommon::Str;
+use PerlShareCommon::Constants;
 use PerlShareCommon::WatchDirectoryTree;
 use Unison;
 
@@ -79,53 +80,29 @@ sub create_share() {
   
   # First check if we can reach the host
   log_info("Checking access to $host for user $email (share=$sharename, local=$locshare)");
-  
-  #my $ssh = Net::OpenSSH->new($host, 
-  #                            user => $email, 
-  #                            passwd => $pass, 
-  #                            default_ssh_opts => [-o => "StrictHostKeyChecking no" ]
-  #                            );
-  my $ssh2 = Net::SSH2->new();
-  my $connected = 1;
-  $ssh2->connect($host) or $connected = 0;
-  if ($connected) {
-    if ($ssh2->auth_password($email, $pass)) {
-      log_info("Logged in to $host");
-    } else {
+  {
+    my $cmd = "perl ".my_dir()."/PerlCheckSSH.pl $sharename $host $email $pass";
+    open my $fh, "$cmd 2>&1 |";
+    while (my $line = <$fh>) {
+      log_info($line);
+    }
+    close($fh);
+    my $exit_code = $? / 256;
+    log_info("exitcode = $exit_code");
+    if ($exit_code == 1) {
+      $self->{message} = "Cannot reach host";
+      log_error($self->{message});
+      log_info("####");
+      return 0;
+    } elsif ($exit_code == 2) {
       $self->{message} = "user not registered or wrong credentials, check logs";
       log_error($self->{message});
       log_info("####");
       return 0;
     }
-  } else {
-    $self->{message} = "Cannot reach host";
-    log_error($self->{message});
-    log_info("####");
-    return 0;
   }
   
-  
-  #my $exp;
-  #$exp = Expect->new();
-  #$exp->raw_pty(1);
-  #$exp->log_stdout(0);
-  #$exp->log_file(\&log_info);
-  #$exp->debug(1);
   my $sshkey_file;
-  #my $cmd = "ssh -o \"StrictHostKeyChecking no\" -l $email $host \"echo 'OKOKOK'\"";
-  #log_info("cmd = $cmd");
-  #$exp->spawn($cmd);
-  
-  #my $patidx;
-  #$patidx = $exp->expect(3,"password:", "OKOKOK");
-  #log_info("patidx = $patidx");
-  #if ($patidx == 1) {
-  #  $exp->send("$pass\n");
-  #  $patidx = $exp->expect(3, 'OKOKOK');
-  #} 
-  
-  #$exp->soft_close();
-  #log_info("patidx = $patidx");
 
   # Go on and create
   mkdir(perlshare_dir($locshare));
@@ -148,86 +125,54 @@ sub create_share() {
   
   # Check if we already can reach the host with this key
   log_info("Pushing public key to server $host for user $email");
-  #$exp = Expect->new();
-  #$exp->raw_pty(1);
-  #$exp->log_stdout(0);
-  #$exp->log_file(\&log_info);
-  #$exp->spawn("cat \"$sshkey_pub_file\" | ssh -o \"StrictHostKeyChecking no\" -i \"$sshkey_file\" -l $email $host \"cat >>.ssh/authorized_keys2;echo OKOKOK\"");
-  
-  #$patidx = $exp->expect(3,"password:", "OKOKOK");
-  #log_info("patidx = $patidx");
-  #if ($patidx == 1) {
-  #  $exp->send("$pass\n");
-  #  $patidx = $exp->expect(3, 'OKOKOK');
-  #} 
   my $result = 1;
   
-  #my $sftp = $ssh2->sftp();
-  #if ($sftp) {
-  #  my $sfh = $sftp->open("tst", O_APPEND|O_CREAT);
-  #  if ($sfh) {
-  #    open my $fh, "<$sshkey_pub_file";
-  #    while (my $line = <$fh>) {
-  #      log_info($line);
-  #      my $bytes = print $sfh $line;
-  #      log_info("written: $bytes bytes");
-  #    }
-  #    close $fh;
-  #    close $sfh;
-  #  } else {
-  #    $self->{message} = "Cannot push public key to server, couldn't open authorized_keys2 ";
-  #    $result = 0;
-  #  }
-  my $session = $ssh2->channel();
-  if ($session) {
-    $session->exec("cat >>.ssh/authorized_keys2");
-    open my $fh, "<$sshkey_pub_file";
+  {
+    my $cmd = "perl ".my_dir()."/PerlCheckSSH.pl $sharename $host $email $pass $sshkey_pub_file";
+    open my $fh, "$cmd 2>&1 |";
     while (my $line = <$fh>) {
       log_info($line);
-      my $bytes = $session->write($line);
-      log_info("written: $bytes bytes");
-      $session->flush();
     }
-    $session->close();
-    $session = $ssh2->channel();
-    $session->exec("mkdir -p /home/perlshare/$email/$sharename");
-    $session->close();
-    $session = $ssh2->channel();
-    $session->exec("echo -10 >/home/perlshare/$email/$sharename/.count");
-    $session->close();
-  } else {
-    $self->{message} = "Cannot push public key to server, no sftp connection";
-    $result = 0;
+    close($fh);
+    my $exit_code = $? / 256;
+    log_info("exitcode = $exit_code");
+    if ($exit_code != 0) {
+      $self->{message} = "Cannot push public key to server, no sftp connection";
+      $result = 0;
+    }
   }
   
-  #$exp->soft_close();
-
-  #if (not(defined($patidx))) { $patidx = 1; }
-  
-  #if ($patidx == 1) { # all went well
   if ($result) {
     my $prf_file = unison_dir($locshare)."/default.prf";
+    my $sshconfig = unison_dir($locshare)."/sshconfig";
+
     log_info("Creating profile '$prf_file'");
-    open my $fh, ">$prf_file";
-    print $fh "root = ".perlshare_dir($locshare)."\n";
+    
+    open my $fh, ">$sshconfig";
+    print $fh "ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Win32\"\n";
+    print $fh "ProtocolKeepAlives 5\n";
+    print $fh "IdentityFile $sshkey_file\n";
+    close($fh);
+
+    my $perlsharemerge = my_dir()."/PerlShareMerge.pl";
+    my $sharedir = perlshare_dir($locshare);
+    open $fh, ">$prf_file";
+    print $fh "root = $sharedir\n";
     print $fh "root = ssh://$host//home/perlshare/$email/$sharename\n";
-    print $fh "sshargs = -i $sshkey_file -l $email -C\n";
+    print $fh "sshargs = -F $sshconfig -l $email\n";
     print $fh "ignore = Path .*\n";
     print $fh "follow = Regex .*\n";
     print $fh "fastcheck = true\n";
     print $fh "fat = true\n";
     print $fh "dontchmod = false\n";
     print $fh "perms = 0\n";
-    print $fh "servercmd = /usr/local/bin/unison_umask\n";
+    print $fh "merge = Name * -> perl $perlsharemerge '$sharedir' 'PATH' 'CURRENT1' 'CURRENT2' 'NEW'\n";
+    print $fh "servercmd = /usr/share/perlshare/unison_umask\n";
     close($fh);
     
     $self->{message} = "Success";
     my $result = 1;
   }
-  #} else { # anything else means we didn't succeed
-  #  $self->{message} = "Could not create the share with the given credentials, check log";
-  #  $result = 0;
-  #}
   
   # Check if unison is there and unison versions
   log_info("Checking consistency of unison versions");
@@ -302,15 +247,26 @@ sub check_last_sync() {
   log_info("checking share '$share', host=$host, email=$email");
   # We need to check for each top directory if the count has changed.
   
-  my $cmd = "ssh -o \"StrictHostKeyChecking no\" ".
+  my $user_agent = user_agent(); 
+
+  my $cmd = "ssh ".
+                 "-o 'ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"$user_agent\"' ".
+                 "-o 'ProtocolKeepAlives 5' ".
                  "-i \"$keyfile\" -l $email $host ".
                  "cat /home/perlshare/$email/$remote_share/.count";
 
-  open my $fh, "$cmd |";
+  open my $fh, "$cmd 2>/dev/null |";
   my $remote_count = <$fh>;
   $remote_count = trim($remote_count);
   if (not($remote_count)) { $remote_count = -1; }
   close($fh);
+  my $exit_code = $? / 256;
+  
+  log_info("exitcode = $exit_code");
+  if ($exit_code != 0) {
+    log_warn("Cannot connect host for sync checking");
+    return (-1, undef, undef);
+  }
   
   my $localshr = perlshare_dir($local_share);
   open $fh, "<$localshr/.count";
@@ -319,7 +275,13 @@ sub check_last_sync() {
   close($fh);
   if (not($local_count)) { $local_count = 0; }
   
-  if ($remote_count != $local_count) {
+  my $conflict = 0;
+  if (-e "$localshr/.conflict") {
+    unlink("$localshr/.conflict");
+    $conflict = 1;
+  }
+  
+  if ($remote_count != $local_count || $conflict) {
     return (1, $remote_count, $local_count);
   } else {
     return (0, $remote_count, $local_count);
@@ -351,12 +313,16 @@ sub sync_now() {
   open my $fh, ">$localshr/.count";
   print $fh "$count\n";
   close($fh);
-
-  my $cmd = "ssh -o \"StrictHostKeyChecking no\" ".
-                     "-i \"$keyfile\" -l $email $host ".
-                     "\"echo $count >/home/perlshare/$email/$remote_share/.count\"";
+  
+  my $user_agent = user_agent();
+  
+  my $cmd = "ssh ".
+                 "-o 'ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"$user_agent\"' ".
+                 "-o 'ProtocolKeepAlives 5' ".
+                 "-i \"$keyfile\" -l $email $host ".
+                 "\"echo $count >/home/perlshare/$email/$remote_share/.count;chmod 664 /home/perlshare/$email/$remote_share/.count\"";
       
-  open $fh, "$cmd |";
+  open $fh, "$cmd 2>/dev/null |";
   while (my $line = <$fh>) {
     log_info($line);
   }
@@ -399,7 +365,10 @@ sub synchronizer() {
           }
           
           my ($sync, $remote_count, $local_count) = $shares->check_last_sync($share);
-          if ($sync || $first_time) {
+          if ($sync == -1) { # Cannot connect
+            $cb->($share, "disconnected", -1);
+          } elsif ($sync || $first_time) {
+            $cb->($share, "connected", 0);
             $shares->sync_now($share, $cb, $remote_count, $local_count);
           }
           

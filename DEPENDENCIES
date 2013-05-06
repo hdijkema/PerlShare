@@ -1,2 +1,3 @@
-libnet-ssh2-perl
 libgtk2-perl
+program expect
+proxytunnel

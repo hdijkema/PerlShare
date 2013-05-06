@@ -75,12 +75,15 @@ Glib::Timeout->add(100, sub {
           my @S = $shares->get_shares();
           
           my $red = 0;
+          my $gray = 1;
           foreach my $sharename (@S) {
             my $code = $shares->get_assoc($sharename, "code");
             log_info("$sharename - code = $code");
-            if ($code > 0) { $red = 1; }
+            if ($code > 0) { $red = 1;$gray = 0; }
+            elsif ($code == 0) { $gray = 0; }
           }
           $status_icon->set_collision($red);
+          $status_icon->set_gray($gray);
           $status_icon->end_sync();
         }
         

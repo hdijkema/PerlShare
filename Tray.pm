@@ -23,6 +23,8 @@ sub new() {
 	}
 	$obj->{"icn_collision"}=Gtk2::Gdk::Pixbuf->new_from_file("$img_dir/tray_collision.png");
 	
+	$obj->{"icn_gray"}=Gtk2::Gdk::Pixbuf->new_from_file("$img_dir/tray_gray.png");
+	
 	my $use_statusicon = 1;
 	my $use_appindicator = 0;
 	if ($kind eq "appindicator") {
@@ -62,6 +64,7 @@ sub new() {
 	
 	$obj->{collision}=0;
 	$obj->{activity}=0;
+	$obj->{disconnected} = 0;
 	
 	bless $obj,$class;
 	
@@ -96,6 +99,11 @@ sub set_collision() {
 	$self->{collision}=shift;
 }
 
+sub set_gray() {
+  my $self = shift;
+  $self->{disconnected} = shift;
+}
+
 sub begin_sync() {
 	my $self=shift;
 	my $space_name=shift;
@@ -110,6 +118,8 @@ sub end_sync() {
 	my $a="inactive";
 	if ($self->{collision}) {
 		$a="collision";
+	} else if ($self->{disconnected}) {
+	  $a="gray";
 	}
 	my $pb=$self->{"icn_".$a};
 	

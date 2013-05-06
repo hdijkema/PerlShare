@@ -131,7 +131,7 @@ sub create_menu($$$) {
     my $mnu_map = Gtk2::MenuItem->new("_Open folder");
     
     $submenu->append($mnu_map);
-    $submenu->append($mnu_col);
+    #$submenu->append($mnu_col);
     $submenu->append($mnu_web);
     $submenu->append(Gtk2::SeparatorMenuItem->new());
     $submenu->append($mnu_drop);

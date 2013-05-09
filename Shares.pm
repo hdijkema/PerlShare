@@ -17,7 +17,11 @@ sub new() {
   mkdir(global_conf_dir());
   
   tie my %cfg, 'PerlShareCommon::Cfg', READ => global_conf();
-  my $sleep_time = $cfg{main}{sync_sleep} or 30;
+  
+  my $sleep_time = $cfg{main}{sync_sleep};
+  if ($sleep_time <= 0) { $sleep_time = 30; }
+  elsif ($sleep_time < 10) { $sleep_time = 10; }
+  
   $obj->{sleep_time} = $sleep_time;
   untie %cfg;
   

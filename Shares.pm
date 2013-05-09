@@ -1,14 +1,12 @@
 package Shares;
 use strict;
 use POSIX qw(:fcntl_h);
-#use Expect;
-#use Net::OpenSSH;
-use Net::SSH2;  
 use PerlShareCommon::Dirs;
 use PerlShareCommon::Log;
 use PerlShareCommon::Str;
 use PerlShareCommon::Constants;
 use PerlShareCommon::WatchDirectoryTree;
+use LWP::Simple;
 use Unison;
 
 sub new() {
@@ -17,6 +15,11 @@ sub new() {
   
   $obj->{message} = "";
   mkdir(global_conf_dir());
+  
+  tie my %cfg, 'PerlShareCommon::Cfg', READ => global_conf();
+  my $sleep_time = $cfg{main}{sync_sleep} or 30;
+  $obj->{sleep_time} = $sleep_time;
+  untie %cfg;
   
   bless $obj, $class;
   
@@ -64,6 +67,106 @@ sub get_assoc() {
   return $assoc->{$type};
 }
 
+sub check_share_host() {
+  my $self = shift;
+  my $share = shift;
+  my $host = shift;
+  my $email = shift;
+  my $pass = shift;
+  
+  my $checker = sub {
+    my $url = shift;
+    log_info("Checking $url for user '$email' and share '$share'");
+    my $browser = LWP::UserAgent->new();
+    my $response = $browser->post(
+          $url, 
+          [ 'share' => $share,
+            'email' => $email,
+            'pass' => $pass
+          ]
+    );
+    
+    if (not($response->is_success)) {
+      log_error("Error at $url - '".$response->status_line."' Aborting");
+      return "Can't reach host '$host'";
+    }
+    
+    my $content = $response->content();
+    log_info($content);
+    
+    if ($content =~ /OKOKOK/) {
+      return undef;
+    } else {
+      return "User '$email' is not registered or wrong credentials have been given";
+    } 
+  };
+  
+  $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME}=0;
+  my $result = $checker->("https://$host/check_user.php", $host);
+  if ($result=~/^Can[']t[ ]reach[ ]host/) {
+    my $r1 = $checker->("https://$host/perlshare/check_user.php", $host);
+    if ($r1=~/^Can[']t[ ]reach[ ]host/) {
+      return $result;
+    } else {
+      return $r1;
+    }
+  } else {
+    return $result;
+  }
+}
+
+sub push_public_key() {
+  my $self = shift;
+  my $share = shift;
+  my $host = shift;
+  my $email = shift;
+  my $pass = shift;
+  my $keyfile = shift;
+  
+  open my $fh, "<$keyfile.pub";
+  my $key = "";
+  while(my $line = <$fh>) {
+    $key .= $line;
+  }
+  close($fh);
+  
+  my $checker = sub {
+    my $url = shift;
+    log_info("Checking $url for user '$email' and share '$share'");
+    my $browser = LWP::UserAgent->new();
+    my $response = $browser->post(
+          $url, 
+          [ 'share' => $share,
+            'email' => $email,
+            'pass' => $pass,
+            'key' => $key
+          ]
+    );
+    
+    if (not($response->is_success)) {
+      log_error("Error at $url - '".$response->status_line."' Aborting");
+      return "Can't reach host";
+    }
+    
+    my $content = $response->content();
+    log_info($content);
+    
+    $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME}=0;
+    if ($content =~ /OKOKOK/) {
+      return undef;
+    } else {
+      return "User not registered or wrong credentials given";
+    } 
+  };
+  
+  my $result = $checker->("https://$host/push_key.php");
+  if ($result eq "Can't reach host") {
+    return $checker->("https://$host/perlshare/push_key.php");
+  } else {
+    return $result;
+  }
+}
+
 sub create_share() {
   my $self = shift;
   my $sharename = shift;
@@ -80,26 +183,12 @@ sub create_share() {
   
   # First check if we can reach the host
   log_info("Checking access to $host for user $email (share=$sharename, local=$locshare)");
-  {
-    my $cmd = "perl ".my_dir()."/PerlCheckSSH.pl $sharename $host $email $pass";
-    open my $fh, "$cmd 2>&1 |";
-    while (my $line = <$fh>) {
-      log_info($line);
-    }
-    close($fh);
-    my $exit_code = $? / 256;
-    log_info("exitcode = $exit_code");
-    if ($exit_code == 1) {
-      $self->{message} = "Cannot reach host";
-      log_error($self->{message});
-      log_info("####");
-      return 0;
-    } elsif ($exit_code == 2) {
-      $self->{message} = "user not registered or wrong credentials, check logs";
-      log_error($self->{message});
-      log_info("####");
-      return 0;
-    }
+  my $message = $self->check_share_host($sharename, $host, $email, $pass);
+  if (defined($message)) {
+    log_error($message);
+    $self->{message} = $message;
+    log_info("####");
+    return 0;
   }
   
   my $sshkey_file;
@@ -116,6 +205,7 @@ sub create_share() {
   # Create a new sshkey if necessary
   log_info("Creating RSA key at $sshkey_file");
   if (! -r $sshkey_file) {
+    $ENV{CYGWIN} = "nodosfilewarning";  # win32
     open my $fh, "ssh-keygen -t rsa -N \"\" -f \"$sshkey_file\" 2>&1 |";
     while (my $line = <$fh>) {
       log_info($line);
@@ -126,20 +216,12 @@ sub create_share() {
   # Check if we already can reach the host with this key
   log_info("Pushing public key to server $host for user $email");
   my $result = 1;
-  
-  {
-    my $cmd = "perl ".my_dir()."/PerlCheckSSH.pl $sharename $host $email $pass $sshkey_pub_file";
-    open my $fh, "$cmd 2>&1 |";
-    while (my $line = <$fh>) {
-      log_info($line);
-    }
-    close($fh);
-    my $exit_code = $? / 256;
-    log_info("exitcode = $exit_code");
-    if ($exit_code != 0) {
-      $self->{message} = "Cannot push public key to server, no sftp connection";
-      $result = 0;
-    }
+  $message = $self->push_public_key($sharename, $host, $email, $pass, $sshkey_file);
+  if (defined($message)) {
+    log_error($message);
+    $self->{message} = $message;
+    log_info("####");
+    $result = 0;
   }
   
   if ($result) {
@@ -147,11 +229,17 @@ sub create_share() {
     my $sshconfig = unison_dir($locshare)."/sshconfig";
 
     log_info("Creating profile '$prf_file'");
+    my $os = $^O;
     
     open my $fh, ">$sshconfig";
+    print $fh "StrictHostKeyChecking no\n";
     print $fh "ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Win32\"\n";
-    print $fh "ProtocolKeepAlives 5\n";
-    print $fh "IdentityFile $sshkey_file\n";
+    if ($os=~/^MSWin/) {
+      # do nothing
+    } else {
+      print $fh "ProtocolKeepAlives 5\n";
+    }
+    print $fh "IdentityFile \"$sshkey_file\"\n";
     close($fh);
 
     my $perlsharemerge = my_dir()."/PerlShareMerge.pl";
@@ -159,7 +247,7 @@ sub create_share() {
     open $fh, ">$prf_file";
     print $fh "root = $sharedir\n";
     print $fh "root = ssh://$host//home/perlshare/$email/$sharename\n";
-    print $fh "sshargs = -F $sshconfig -l $email\n";
+    print $fh "sshargs = -F \"$sshconfig\" -l $email\n";
     print $fh "ignore = Path .*\n";
     print $fh "follow = Regex .*\n";
     print $fh "fastcheck = true\n";
@@ -174,27 +262,29 @@ sub create_share() {
     my $result = 1;
   }
   
-  # Check if unison is there and unison versions
-  log_info("Checking consistency of unison versions");
-  my $unison_ctrl = new Unison();
-  if ($unison_ctrl->has_unison()) {
-    my $local_version = $unison_ctrl->version();
-    my $remote_version = $unison_ctrl->version($host, $sshkey_file, $email);
-    log_info("Unison: local version: $local_version");
-    log_info("Unison: remote version: $remote_version");
-    if ($local_version ne $remote_version) {
-      log_error("Unison: local and remote versions differ!");
-      $self->{message} = "The local and remote versions of PerlShare differ. Make sure they are the same.";
+  if ($result) {
+    # Check if unison is there and unison versions
+    log_info("Checking consistency of unison versions");
+    my $unison_ctrl = new Unison();
+    if ($unison_ctrl->has_unison()) {
+      my $local_version = $unison_ctrl->version();
+      my $remote_version = $unison_ctrl->version($host, $sshkey_file, $email);
+      log_info("Unison: local version: $local_version");
+      log_info("Unison: remote version: $remote_version");
+      if ($local_version ne $remote_version) {
+        log_error("Unison: local and remote versions differ!");
+        $self->{message} = "The local and remote versions of PerlShare differ. Make sure they are the same.";
+        $result = 0;
+      }
+    } else {
+      log_error("No unison installed!");
+      $self->{message} = "You need unison installed for PerlShare to work";
       $result = 0;
     }
-  } else {
-    log_error("No unison installed!");
-    $self->{message} = "You need unison installed for PerlShare to work";
-    $result = 0;
   }
   
   # put share in config
-  if ($result != 0) {
+  if ($result) {
     log_info("Adding share to configuration");
     tie my %cfg, 'PerlShareCommon::Cfg', READ => global_conf(), WRITE => global_conf();
     my $num_of_shares = $cfg{shares}{count} or 0;
@@ -248,14 +338,18 @@ sub check_last_sync() {
   # We need to check for each top directory if the count has changed.
   
   my $user_agent = user_agent(); 
+  my $os = $^O;
+  my $keepalives = ($os=~/^MSWin/) ? "" : "-o 'ProtocolKeepAlives 5' ";
 
   my $cmd = "ssh ".
+                 "-o 'StrictHostKeyChecking no' ".
                  "-o 'ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"$user_agent\"' ".
-                 "-o 'ProtocolKeepAlives 5' ".
+                 "$keepalives".
                  "-i \"$keyfile\" -l $email $host ".
                  "cat /home/perlshare/$email/$remote_share/.count";
 
-  open my $fh, "$cmd 2>/dev/null |";
+  $ENV{CYGWIN} = "nodosfilewarning";  # win32
+  open my $fh, "$cmd |";
   my $remote_count = <$fh>;
   $remote_count = trim($remote_count);
   if (not($remote_count)) { $remote_count = -1; }
@@ -288,6 +382,21 @@ sub check_last_sync() {
   }
 }
 
+sub get_share_info() {
+  my $shares = shift;
+  my $share = shift;
+  
+  tie my %cfg, 'PerlShareCommon::Cfg', READ => global_conf();
+  my $host = $cfg{data}{$share}{host};
+  my $keyfile = $cfg{data}{$share}{keyfile};
+  my $email = $cfg{data}{$share}{email};
+  my $local_share = $cfg{data}{$share}{local};
+  my $remote_share = $cfg{data}{$share}{remote};
+  untie %cfg;
+  
+  return ($host, $email, $local_share, $remote_share, $keyfile);
+}
+
 sub sync_now() {
   my $self = shift;
   my $share = shift;
@@ -315,14 +424,18 @@ sub sync_now() {
   close($fh);
   
   my $user_agent = user_agent();
-  
+  my $os = $^O;
+  my $keepalives = ($os=~/^MSWin/) ? "" : "-o 'ProtocolKeepAlives 5' ";
+
   my $cmd = "ssh ".
+                 "-o 'StrictHostKeyChecking no' ".
                  "-o 'ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"$user_agent\"' ".
-                 "-o 'ProtocolKeepAlives 5' ".
+                 "$keepalives".
                  "-i \"$keyfile\" -l $email $host ".
                  "\"echo $count >/home/perlshare/$email/$remote_share/.count;chmod 664 /home/perlshare/$email/$remote_share/.count\"";
       
-  open $fh, "$cmd 2>/dev/null |";
+  $ENV{CYGWIN} = "nodosfilewarning";  # win32
+  open $fh, "$cmd |";
   while (my $line = <$fh>) {
     log_info($line);
   }
@@ -381,7 +494,7 @@ sub synchronizer() {
           $watcher->get_directory_changes();
         }
         $first_time = 0;
-        sleep(10);
+        sleep($self->{sleep_time});
       }
     }
   );

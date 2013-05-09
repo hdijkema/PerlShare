@@ -39,7 +39,7 @@ sub new() {
 		if ($os eq "darwin") {
 			$status_icon->signal_connect("popup-menu",sub { $obj->show_menu(); });
 		} else {
-			$status_icon->signal_connect("activate",sub { $obj->show_men(); });
+			$status_icon->signal_connect("activate",sub { $obj->show_menu(); });
 		}
 		$status_icon->set_visible(1);
 		$obj->{icon}=$status_icon;
@@ -54,6 +54,7 @@ sub new() {
 		}
 		$obj->{"icn_inactive"}="tray_inactive";
 		$obj->{"icn_collision"}="tray_collision";
+		$obj->{"icn_gray"}="tray_gray";
 		
   	$status_icon->set_menu($menu);
   	$status_icon->set_active();
@@ -133,7 +134,9 @@ sub end_sync() {
 sub show_menu() {
   my $self = shift;
   my $menu = $self->{popup_menu};
-  $menu->popup(undef,undef,undef,undef,0,0);
+  my $status_icon = $self->{icon};
+  my ($x, $y, $push_in) = Gtk2::StatusIcon::position_menu($menu, $status_icon);
+  $menu->popup(undef,undef,sub { return ($x,$y,$push_in); },undef,0,0);
 }
 
 sub set_menu() {

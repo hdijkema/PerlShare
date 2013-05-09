@@ -31,15 +31,19 @@ sub version() {
     my $user = "";
     if (defined($ssh_user)) { $user = "$ssh_user"; }
 
+    my $os = $^O;
+    my $keepalives = ($os=~/^MSWin/) ? "" : "-o 'ProtocolKeepAlives 5' ";
+    
     $cmd = "ssh -i \"$ssh_keyfile\" ".
                "-o 'StrictHostKeyChecking no' ".
                "-o 'ProxyCommand proxytunnel -q -p $ssh_server:80 -d localhost:22 -H \"$user_agent\"' ".
-               "-o 'ProtocolKeepAlives 5' ".
+               "$keepalives".
                "-l $user $ssh_server ".
                "unison -version";
     log_info($cmd);
   }
     
+  $ENV{CYGWIN} = "nodosfilewarning";  # win32
   open my $fh, "$cmd 2>&1 |";
   my $line;
   while ($line = <$fh>) {
@@ -59,11 +63,15 @@ sub version() {
         return undef;
       } else {
         log_info("Unison: determined unison version as $line");
-        return $line;
+        log_info("returning major part");
+        my $version = $line;
+        $version =~ s/[.][^.]*$//;
+        return $version;
       }
     } else {
       log_error("Unison: cannot determine unison version");
       log_error("Unison: info '$line'");
+      return undef;
     }
   } else {
     log_error("Unison: cannot determine unison version");
@@ -143,10 +151,19 @@ sub unison_cmd() {
   my $ui = shift;
   my $cmd = shift;
 
-  my $unison = "unison-gtk";
-  if ($^O eq "darwin") { $unison = "unison"; }
+  my $unison = "unison";
+  #if ($^O=~/linux/i) { $unison = "unison-gtk"; }
+  #if ($^O eq "darwin") { $unison = "unison"; }
 
-  my $cmd = "UNISON='".unison_dir($share)."' $unison -ui $ui $cmd";
+  $ENV{CYGWIN} = "nodosfilewarning";  # win32
+  $ENV{UNISON} = unison_dir($share);
+  my $env = "";
+  if ($^O=~/linux/i) {
+    $env = "UNISON='".unison_dir($share)."' ";
+  }
+    
+  #my $cmd = "UNISON='".unison_dir($share)."' $unison -ui $ui $cmd";
+  my $cmd = "$env$unison -ui $ui $cmd";
   log_info("Unison: $cmd");
   return $cmd;
 }

@@ -3,7 +3,8 @@ use strict;
 use threads;
 use Thread::Queue;
 use Glib qw(TRUE FALSE);
-use Gtk2 qw/-init -threads-init 1.050/;
+#use Gtk2 qw/-init -threads-init 1.050/;
+use Gtk2 qw/-init/;
 use Tray;
 use Shares;
 use Unison;
@@ -23,6 +24,7 @@ log_file(log_dir()."/perlshare.log");
 ######################################################################################
 
 my $os = $^O;
+log_info("OS = $os");
 
 if ($os eq "darwin") {
   my $app=new Gtk2::OSXApplication();
@@ -44,9 +46,17 @@ if ($os eq "darwin") {
 # Global menu
 my $shares = new Shares();
 my $menu = Gtk2::Menu->new();
-my $status_icon = new Tray(images_dir(), $menu, "appindicator");
+my $status_icon;
+
+if ($os=~/^MSWin/ || $os eq "darwin") {
+  $status_icon = new Tray(images_dir(), $menu, "statusicon");
+} else {
+  $status_icon = new Tray(images_dir(), $menu, "appindicator");
+}
 
 my $data_queue = new Thread::Queue();
+
+log_debug("Starting timeout sub");
 Glib::Timeout->add(100, sub {
     my $data = $data_queue->dequeue_nb();
     while (defined($data) && $data ne "quit") {
@@ -71,21 +81,21 @@ Glib::Timeout->add(100, sub {
       } elsif ($state eq "done" || $state eq "disconnected" || $state eq "connected") {
         $shares->associate($share, "code", $code);
         
-        if ($state eq "done") {
+        #if ($state eq "done") {
           my @S = $shares->get_shares();
           
           my $red = 0;
           my $gray = 1;
           foreach my $sharename (@S) {
             my $code = $shares->get_assoc($sharename, "code");
-            log_info("$sharename - code = $code");
+            #log_info("$sharename - code = $code");
             if ($code > 0) { $red = 1;$gray = 0; }
             elsif ($code == 0) { $gray = 0; }
           }
           $status_icon->set_collision($red);
           $status_icon->set_gray($gray);
           $status_icon->end_sync();
-        }
+        #}
         
         my $image_menu_item = $shares->get_assoc($share,"menu-item");
         my $img = ($code > 0) ? image_nok() :
@@ -165,15 +175,25 @@ sub create_menu($$$) {
 }
 
 sub image_ok() {
-  return Gtk2::Image->new_from_file(images_dir()."/tray_inactive.png");
+  return get_scaled_image("tray_inactive.png");
+#  return Gtk2::Image->new_from_file
 }
 
 sub image_nok() {
-  return Gtk2::Image->new_from_file(images_dir()."/tray_collision.png");
+  return get_scaled_image("tray_collision.png");
+  #return Gtk2::Image->new_from_file(images_dir()."/tray_collision.png");
 }
 
 sub image_disconnected() {
-  return Gtk2::Image->new_from_file(images_dir()."/tray_gray.png");
+  return get_scaled_image("tray_gray.png");
+  #return Gtk2::Image->new_from_file(images_dir()."/tray_gray.png");
+}
+
+sub get_scaled_image($) {
+  my $name = shift;
+  my ($w,$h) = Gtk2::IconSize->lookup('menu');
+  my $pb = Gtk2::Gdk::Pixbuf->new_from_file_at_size(images_dir()."/$name", $w, $h);
+  return Gtk2::Image->new_from_pixbuf($pb);
 }
 
 sub quit($) {
@@ -254,19 +274,27 @@ sub create_share($$) {
       my $nok = undef;
       if ($sharename=~/\s+/ || $local=~/\s+/) {
         $nok = "A name of a share may not contain spaces or tabs";
+      } elsif ($sharename eq "") {
+        $nok = "A share name must be given";
+      } elsif ($host eq "") {
+        $nok = "A hostname is mandatory";
+      } elsif ($email eq "") {
+        $nok = "Your registered email addres (or account) must be given";
+      } elsif ($pass eq "") {
+        $nok = "A password is mandatory (it won't be stored locally)";
       }
       
       if (defined($nok)) { # Error
-         show_message_dialog($dialog, "PerlShare - Create Share", 'error', $nok);
+         show_message_dialog($dialog, "PerlShare - Create Share", 'error', "Creating share", $nok);
          $response = 2;
       } else {
         my $result = $shares->create_share($sharename, $host, $email, $pass, $local);
         if ($result == 0) { # Error
-          show_message_dialog($dialog, "PerlShare - Create Share", 'error', $shares->get_message());
+          show_message_dialog($dialog, "PerlShare - Create Share", 'error', "Creating share", $shares->get_message());
           $response = 2;
         } else { # recreate menu
           my $menu = create_menu($shares, $status_icon, $data_queue);
-          show_message_dialog($dialog, "PerlShare - Create Share", 'info', "Share $sharename has sucessfully been created");
+          show_message_dialog($dialog, "PerlShare - Create Share", 'info', "Creating Share", "Share $sharename has sucessfully been created");
           sync_now($shares, $sharename, $status_icon, $data_queue);
         }
       }
@@ -292,8 +320,49 @@ sub open_share($$) {
   my $share = shift;
   
   my $dir = perlshare_dir($share);
+  log_info("opening $dir");
   
-  system("xdg-open $dir"); 
+  my $os = $^O;
+  if ($os =~ /^MSWin/) {
+    $dir=~s%/%\\%g;
+    system("start explorer \"$dir\"");
+  } elsif ($os eq "darwin") {
+    system("open '$dir'");
+  } else {
+    system("xdg-open '$dir'");
+  }
+}
+
+sub share_web($$) {
+  my $shares = shift;
+  my $share = shift;
+  my ($host, $email) = $shares->get_share_info($share);
+  
+  my $url = "http://$host?login=$email";
+  my $os = $^O;
+  if ($os=~/MSWin/) {
+    system("start $url");
+  } else {
+    Gtk2::show_uri(Gtk2::Gdk::Screen->get_default(),$url);
+  }
+}
+
+sub share_drop($$) {
+  my $shares = shift;
+  my $share = shift;
+  
+  my $response = ask_yn_message(
+    undef, 
+    "PerlShare - Drop Share", 
+    'question', 
+    "Dropping share '$share'",
+    "Contents will remain on the server and local, but synchronization ".
+    "will stop. If you want to remove this share all together, please do ".
+    "this at the website.\n\n".
+    "Are you sure you want to remove this share from synchronizing?"
+    );
+  log_info("result = $response");
+  
 }
 
 sub sync_now($$) {
@@ -319,24 +388,42 @@ sub report_cb($$$$) {
   $data_queue->enqueue("$sharename,$state,$code");
 }
 
-sub show_message_dialog($$$$) {
-#you tell it what to display, and how to display it
-#$icon can be one of the following:	a) 'info'
+
+# $icon can be one of the following:	
+#         a) 'info'
 #					b) 'warning'
 #					c) 'error'
 #					d) 'question'
-#$text can be pango markup text, or just plain text, IE the message
-  my ($parent,$title, $icon,$text) = @_;
+sub show_message_dialog($$$$;$) {
+  return message_dialog('ok', @_);
+}
+
+sub ask_yn_message($$$$;$) {
+  return message_dialog('yes-no', @_);
+}
+
+sub message_dialog($$$$$;$) {
+  my ($buttons, $parent, $title, $icon, $text, $subtext) = @_;
+  
+  my $t1 = $title;
+  if (defined($subtext)) { $t1 = $text; }
+  my $t2 = $text;
+  if (defined($subtext)) { $t2 = $subtext; }
+  
   my $dialog = Gtk2::MessageDialog->new_with_markup ($parent,
   					[qw/modal destroy-with-parent/],
   					$icon,
-  					'ok',
-  					sprintf "$text");
-  
+  					$buttons,
+  					sprintf "<b>$t1</b>");
   $dialog->set_title($title);
-  $dialog->run;
+  if ($t2) { $dialog->format_secondary_text($t2); }
+  
+  my $response = $dialog->run;
  	$dialog->destroy;
+ 	
+ 	return $response;
 }
+
 
 
 

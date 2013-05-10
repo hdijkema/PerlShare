@@ -150,10 +150,10 @@ sub create_menu($$$) {
     $submenu->append($mnu_web);
     $submenu->append(Gtk2::SeparatorMenuItem->new());
     $submenu->append($mnu_drop);
-    $mnu_map->signal_connect("activate", sub { open_share($shares,$share); });
+    $mnu_map->signal_connect("activate", sub { open_share($shares, $share); });
     #$mnu_col->signal_connect("activate", sub { share_collision($shares,$share); });
-    $mnu_web->signal_connect("activate", sub { share_web($shares,$share); });
-    $mnu_drop->signal_connect("activate", sub { share_drop($shares,$share); });
+    $mnu_web->signal_connect("activate", sub { share_web($shares, $share); });
+    $mnu_drop->signal_connect("activate", sub { share_drop($shares, $share, $status_icon, $data_queue); });
     
     $mnu->set_submenu($submenu);
     $menu->append($mnu);
@@ -336,6 +336,9 @@ sub open_share($$) {
 sub share_web($$) {
   my $shares = shift;
   my $share = shift;
+  my $status_icon = shift;
+  my $data_queue = shift;
+  
   my ($host, $email) = $shares->get_share_info($share);
   
   my $url = "http://$host?login=$email";
@@ -361,8 +364,10 @@ sub share_drop($$) {
     "this at the website.\n\n".
     "Are you sure you want to remove this share from synchronizing?"
     );
-  log_info("result = $response");
-  
+  if ($response eq "yes") {
+    $shares->drop_local($share);
+    create_menu($shares, $status_icon, $data_queue);
+  }
 }
 
 sub sync_now($$) {

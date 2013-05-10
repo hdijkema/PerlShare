@@ -6,6 +6,7 @@ use PerlShareCommon::Log;
 use PerlShareCommon::Str;
 use PerlShareCommon::Constants;
 use PerlShareCommon::WatchDirectoryTree;
+use IO::Socket::SSL qw( SSL_VERIFY_NONE );
 use LWP::Simple;
 use Unison;
 
@@ -82,6 +83,10 @@ sub check_share_host() {
     my $url = shift;
     log_info("Checking $url for user '$email' and share '$share'");
     my $browser = LWP::UserAgent->new();
+    $browser->ssl_opts(
+      SSL_verify_hostname => 0,
+      SSL_verify_mode => SSL_VERIFY_NONE
+    );
     my $response = $browser->post(
           $url, 
           [ 'share' => $share,
@@ -138,6 +143,10 @@ sub push_public_key() {
     my $url = shift;
     log_info("Checking $url for user '$email' and share '$share'");
     my $browser = LWP::UserAgent->new();
+    $browser->ssl_opts(
+      SSL_verify_hostname => 0,
+      SSL_verify_mode => SSL_VERIFY_NONE
+    );
     my $response = $browser->post(
           $url, 
           [ 'share' => $share,
@@ -291,7 +300,9 @@ sub create_share() {
   if ($result) {
     log_info("Adding share to configuration");
     tie my %cfg, 'PerlShareCommon::Cfg', READ => global_conf(), WRITE => global_conf();
-    my $num_of_shares = $cfg{shares}{count} or 0;
+    my $num_of_shares = $cfg{shares}{count};
+    if (not(defined($num_of_shares))) { $num_of_shares = 0; }
+    
     $cfg{shares}{share}[$num_of_shares] = $locshare;
     $cfg{shares}{count} = $num_of_shares + 1;
     
@@ -308,6 +319,28 @@ sub create_share() {
   log_info("####");
   
   return $result;
+}
+
+sub drop_local() {
+  my $self = shift;
+  my $share = shift;
+  tie my %cfg, 'PerlShareCommon::Cfg', READ => global_conf(), WRITE => global_conf();
+  my $num_of_shares = $cfg{shares}{count};
+  if (not(defined($num_of_shares))) { $num_of_shares = 0; }
+  my $i = 0;
+  my $k = 0;
+  while ($i < ($num_of_shares - 1)) {
+    if ($cfg{shares}{share}[$i] eq $share) {
+      # skip
+    } else {
+      $cfg{shares}{share}[$k] = $cfg{shares}{share}[$i];
+      $k += 1;
+    }
+    $i += 1;
+  }
+  $cfg{shares}{share}[$i] = undef;
+  $cfg{shares}{count} = $num_of_shares - 1;
+  untie %cfg;
 }
 
 sub get_message() {

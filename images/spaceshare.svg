@@ -14,11 +14,11 @@
    height="64px"
    id="svg2985"
    version="1.1"
-   inkscape:version="0.48.1 r9760"
+   inkscape:version="0.48.3.1 r9886"
    sodipodi:docname="spaceshare.svg"
-   inkscape:export-filename="/Users/oesterholt/workspace/SpaceShare/Contents/Resources/spaceshare.png"
-   inkscape:export-xdpi="720"
-   inkscape:export-ydpi="720">
+   inkscape:export-filename="/home/hans/software/perlshare/PerlShare/images/perlshare256.png"
+   inkscape:export-xdpi="360"
+   inkscape:export-ydpi="360">
   <defs
      id="defs2987">
     <linearGradient
@@ -80,10 +80,10 @@
      showgrid="true"
      inkscape:document-units="px"
      inkscape:grid-bbox="true"
-     inkscape:window-width="1680"
-     inkscape:window-height="952"
+     inkscape:window-width="1366"
+     inkscape:window-height="715"
      inkscape:window-x="0"
-     inkscape:window-y="0"
+     inkscape:window-y="24"
      inkscape:window-maximized="1" />
   <metadata
      id="metadata2990">

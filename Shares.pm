@@ -383,10 +383,11 @@ sub check_last_sync() {
                  "-o 'ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"$user_agent\"' ".
                  "$keepalives".
                  "-i \"$keyfile\" -l $email $host ".
-                 "cat /home/perlshare/$email/$remote_share/.count";
+                 "\"cat /home/perlshare/$email/$remote_share/.count\"";
 
   $ENV{CYGWIN} = "nodosfilewarning";  # win32
-  open my $fh, "$cmd |";
+  my $log2 = temp_dir()."/perlsharecheck.err";
+  open my $fh, "$cmd 2>\"$log2\" |";
   my $remote_count = <$fh>;
   $remote_count = trim($remote_count);
   if (not($remote_count)) { $remote_count = -1; }
@@ -472,7 +473,8 @@ sub sync_now() {
                  "\"echo $count >/home/perlshare/$email/$remote_share/.count;chmod 664 /home/perlshare/$email/$remote_share/.count\"";
       
   $ENV{CYGWIN} = "nodosfilewarning";  # win32
-  open $fh, "$cmd |";
+  my $log2 = temp_dir()."/perlsharecheck.err";
+  open $fh, "$cmd 2>$log2 |";
   while (my $line = <$fh>) {
     log_info($line);
   }

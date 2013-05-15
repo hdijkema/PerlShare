@@ -12,6 +12,12 @@ my $current_local = shift @ARGV or usage();
 my $current_remote = shift @ARGV or usage();
 my $new_file = shift @ARGV or usage();
 
+print "sharedir = $sharedir\n";
+print "path = $path\n";
+print "current_local = $current_local\n";
+print "current_remote = $current_remote\n";
+print "new_file = $new_file\n";
+
 #
 # Always copy current_remote to new.
 # because current_local can be edited

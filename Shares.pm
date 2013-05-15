@@ -6,6 +6,7 @@ use PerlShareCommon::Log;
 use PerlShareCommon::Str;
 use PerlShareCommon::Constants;
 use PerlShareCommon::WatchDirectoryTree;
+use SshCmd;
 use IO::Socket::SSL qw( SSL_VERIFY_NONE );
 use LWP::Simple;
 use Unison;
@@ -205,6 +206,8 @@ sub create_share() {
   }
   
   my $sshkey_file;
+  my $ssh = new SshCmd();
+  my $fh;
 
   # Go on and create
   mkdir(perlshare_dir($locshare));
@@ -218,12 +221,7 @@ sub create_share() {
   # Create a new sshkey if necessary
   log_info("Creating RSA key at $sshkey_file");
   if (! -r $sshkey_file) {
-    $ENV{CYGWIN} = "nodosfilewarning";  # win32
-    open my $fh, "ssh-keygen -t rsa -N \"\" -f \"$sshkey_file\" 2>&1 |";
-    while (my $line = <$fh>) {
-      log_info($line);
-    }
-    close($fh);
+    $ssh->create_keyfile($sshkey_file);
   }
   
   # Check if we already can reach the host with this key
@@ -244,23 +242,18 @@ sub create_share() {
     log_info("Creating profile '$prf_file'");
     my $os = $^O;
     
-    open my $fh, ">$sshconfig";
-    print $fh "StrictHostKeyChecking no\n";
-    print $fh "ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Win32\"\n";
-    if ($os=~/^MSWin/) {
-      # do nothing
-    } else {
-      print $fh "ProtocolKeepAlives 5\n";
-    }
-    print $fh "IdentityFile \"$sshkey_file\"\n";
-    close($fh);
+    $ssh->create_ssh_config($sshconfig, $host, $email, $sshkey_file);
 
     my $perlsharemerge = my_dir()."/PerlShareMerge.pl";
     my $sharedir = perlshare_dir($locshare);
     open $fh, ">$prf_file";
     print $fh "root = $sharedir\n";
     print $fh "root = ssh://$host//home/perlshare/$email/$sharename\n";
-    print $fh "sshargs = -F \"$sshconfig\" -l $email\n";
+    if ($os=~/MSWin/) {
+      print $fh "sshargs = -F '$sshconfig' -l $email\n";
+    } else {
+      print $fh "sshargs = -F $sshconfig -l $email\n";
+    }
     print $fh "ignore = Path .*\n";
     print $fh "follow = Regex .*\n";
     print $fh "fastcheck = true\n";
@@ -374,18 +367,9 @@ sub check_last_sync() {
   log_info("checking share '$share', host=$host, email=$email");
   # We need to check for each top directory if the count has changed.
   
-  my $user_agent = user_agent(); 
-  my $os = $^O;
-  my $keepalives = ($os=~/^MSWin/) ? "" : "-o 'ProtocolKeepAlives 5' ";
-
-  my $cmd = "ssh ".
-                 "-o 'StrictHostKeyChecking no' ".
-                 "-o 'ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"$user_agent\"' ".
-                 "$keepalives".
-                 "-i \"$keyfile\" -l $email $host ".
-                 "\"cat /home/perlshare/$email/$remote_share/.count\"";
-
-  $ENV{CYGWIN} = "nodosfilewarning";  # win32
+  my $ssh = new SshCmd();
+  my $cmd = $ssh->ssh_cmd($host, $email, "cat /home/perlshare/$email/$remote_share/.count", $keyfile);
+  
   my $log2 = temp_dir()."/perlsharecheck.err";
   open my $fh, "$cmd 2>\"$log2\" |";
   my $remote_count = <$fh>;
@@ -461,18 +445,12 @@ sub sync_now() {
   print $fh "$count\n";
   close($fh);
   
-  my $user_agent = user_agent();
-  my $os = $^O;
-  my $keepalives = ($os=~/^MSWin/) ? "" : "-o 'ProtocolKeepAlives 5' ";
-
-  my $cmd = "ssh ".
-                 "-o 'StrictHostKeyChecking no' ".
-                 "-o 'ProxyCommand proxytunnel -q -p $host:80 -d localhost:22 -H \"$user_agent\"' ".
-                 "$keepalives".
-                 "-i \"$keyfile\" -l $email $host ".
-                 "\"echo $count >/home/perlshare/$email/$remote_share/.count;chmod 664 /home/perlshare/$email/$remote_share/.count\"";
-      
-  $ENV{CYGWIN} = "nodosfilewarning";  # win32
+  my $ssh = new SshCmd();
+  my $cmd = $ssh->ssh_cmd($host, $email, 
+                          "echo $count >/home/perlshare/$email/$remote_share/.count;".
+                            "chmod 664 /home/perlshare/$email/$remote_share/.count",
+                          $keyfile
+                          );
   my $log2 = temp_dir()."/perlsharecheck.err";
   open $fh, "$cmd 2>$log2 |";
   while (my $line = <$fh>) {

@@ -257,6 +257,7 @@ sub create_share() {
     print $fh "ignore = Path .*\n";
     print $fh "follow = Regex .*\n";
     print $fh "fastcheck = true\n";
+    print $fh "copythreshold = 1000\n";
     print $fh "fat = true\n";
     print $fh "dontchmod = false\n";
     print $fh "perms = 0\n";

@@ -1,3 +1,4 @@
 libgtk2-perl
-program expect
 proxytunnel or corkscrew
+liblockfile-simple-perl
+

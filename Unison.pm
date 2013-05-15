@@ -94,6 +94,7 @@ sub run() {
 
   my $args = "$ignore_archives -batch -log -dumbtty default.prf";
   my $cmd = $self->unison_cmd($share, "text", $args);
+  log_debug($cmd);
   $progress_cb->($share, "starting", -1);
   
   open my $fh, "$cmd 2>&1 |";

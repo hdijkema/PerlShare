@@ -21,7 +21,7 @@ sub create_ssh_config() {
   my $pt = $self->{proxytunnel};
 
   my $proxy_option = $pt->proxy_option($host);
-  my $keepalive_option = $pt->proxy_keey_alives();
+  my $keepalive_option = $pt->proxy_keep_alives();
   
   open my $fh, ">$sshconfig_file";
   print $fh "StrictHostKeyChecking no\n";

@@ -513,7 +513,7 @@ sub synchronizer() {
           $watcher->get_directory_changes();
         }
         $first_time = 0;
-        log_info("sleeping ".$self->{sleep_time}". seconds");
+        log_info("sleeping ".$self->{sleep_time}." seconds");
         sleep($self->{sleep_time});
       }
     }

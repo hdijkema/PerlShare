@@ -118,7 +118,7 @@ $shares->synchronizer(sub { report_cb(@_, $data_queue); });
 Gtk2::main(undef);
 
 $status_icon->hide();
-$status_icon->destroy();
+#$status_icon->destroy();
 
 ######################################################################################
 # Supporting functions

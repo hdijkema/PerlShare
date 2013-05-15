@@ -508,9 +508,12 @@ sub synchronizer() {
             # we can connect, but don't need to sync
             $cb->($share, "connected", 0);
           }
-          
+         
+          log_info("done syncing"); 
           # flush watcher after sync
           $watcher->get_directory_changes();
+
+          log_info("got directory changes");
         }
         $first_time = 0;
         log_info("sleeping ".$self->{sleep_time}." seconds");

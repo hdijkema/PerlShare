@@ -42,7 +42,8 @@ sub ssh_cmd() {
   if ($keepalive_option) { $keepalive_option = "-o '$keepalive_option' "; }
   $ENV{CYGWIN} = "nodosfilewarning";  # win32
   
-  my $sshcmd="ssh -o 'StrictHostKeyChecking no' ".
+  my $sshcmd="ssh -o 'ServerAliveInterval 15' ".
+                 "-o 'StrictHostKeyChecking no' ".
                  "-o '$proxy_option' ".
                  "$keepalive_option".
                  "-i \"$keyfile\" -l $email $host ".

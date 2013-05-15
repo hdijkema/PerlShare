@@ -3,6 +3,7 @@ use strict;
 use PerlShareCommon::Dirs;
 use PerlShareCommon::Log;
 use PerlShareCommon::Constants;
+use SshCmd;
 
 sub new() {
   my $class = shift;
@@ -30,20 +31,13 @@ sub version() {
   if (defined($ssh_server)) {
     my $user = "";
     if (defined($ssh_user)) { $user = "$ssh_user"; }
-
-    my $os = $^O;
-    my $keepalives = ($os=~/^MSWin/) ? "" : "-o 'ProtocolKeepAlives 5' ";
     
-    $cmd = "ssh -i \"$ssh_keyfile\" ".
-               "-o 'StrictHostKeyChecking no' ".
-               "-o 'ProxyCommand proxytunnel -q -p $ssh_server:80 -d localhost:22 -H \"$user_agent\"' ".
-               "$keepalives".
-               "-l $user $ssh_server ".
-               "unison -version";
+    my $os = $^O;
+    my $ssh = new SshCmd();
+    my $cmd = $ssh->ssh_cmd($ssh_server, $user, "unison -version", $ssh_keyfile);
     log_info($cmd);
   }
     
-  $ENV{CYGWIN} = "nodosfilewarning";  # win32
   open my $fh, "$cmd 2>&1 |";
   my $line;
   while ($line = <$fh>) {

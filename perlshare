@@ -1,0 +1,3 @@
+#!/bin/bash
+exec perl /usr/share/perlshare/PerlShare.pl >/tmp/perlshare.$USER.log 2>&1
+

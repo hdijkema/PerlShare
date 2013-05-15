@@ -27,15 +27,21 @@ my $ext = $1;
 my $dt = strftime("%Y-%m-%d", localtime);
 my $conflicted_copy = "$sharedir/$name"."-conflicted-copy-"."$dt$ext";
 
-print "linking local file to new\n";
+print "linking local file $current_local to new $new_file\n";
 if (not(link($current_local, $new_file))) {
-  copy($current_local, $new_file);
+  print "copying $current_local to $new_file\n";
+  if (not(copy($current_local, $new_file))) {
+    print "link and copy didn't succeed\n";
+  }
 }  
 
-print "creating conflicted copy of remote file";
-copy($current_remote, $conflicted_copy);
+print "creating conflicted copy of remote file\n";
+print "$current_remote -> $conflicted_copy\n";
+if (not(copy($current_remote, $conflicted_copy))) {
+  print "copy didn't succeed\n";
+}
 
-print "touching .conflict file";
+print "touching .conflict file\n";
 open my $fh, ">$sharedir/.conflict";
 close $fh;
 

@@ -262,7 +262,7 @@ sub create_share() {
     print $fh "fat = true\n";
     print $fh "dontchmod = false\n";
     print $fh "perms = 0\n";
-    print $fh "merge = Name * -> perl $perlsharemerge '$sharedir' 'PATH' 'CURRENT1' 'CURRENT2' 'NEW'\n";
+    print $fh "merge = Name * -> perl $perlsharemerge \"$sharedir\" \"PATH\" \"CURRENT1\" \"CURRENT2\" \"NEW\"\n";
     print $fh "servercmd = /usr/share/perlshare/unison_umask\n";
     close($fh);
     

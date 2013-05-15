@@ -12,6 +12,13 @@ my $current_local = shift @ARGV or usage();
 my $current_remote = shift @ARGV or usage();
 my $new_file = shift @ARGV or usage();
 
+$current_local=~s/^[']//;
+$current_local=~s/[']$//;
+$current_remote=~s/^[']//;
+$current_remote=~s/[']$//;
+$new_file=~s/^[']//;
+$new_file=~s/[']$//;
+
 print "sharedir = $sharedir\n";
 print "path = $path\n";
 print "current_local = $current_local\n";

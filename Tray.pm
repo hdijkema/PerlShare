@@ -149,6 +149,15 @@ sub set_menu() {
   }
 }
 
+sub hide() {
+  my $self = shift;
+  my $status_icon = $self->{icon};
+  if ($self->{icon_type} eq "status") {
+    $status_icon->hide();
+  }
+}
+
+
 1;
 
 

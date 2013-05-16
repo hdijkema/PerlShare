@@ -1,0 +1,6 @@
+- Add rsync behaviour on large files over proxytunnel / corkscrew ssh.
+- Keep Alives
+- Add unison 2.4.102 to the source tree?
+- Windows version
+- OS X version
+

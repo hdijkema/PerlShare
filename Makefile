@@ -1,4 +1,14 @@
 
+ifeq (${USER},root)
+  SUDO=
+else
+  SUDO=sudo
+endif
+
+DESTDIR=/usr
+
+
+
 all: 
 	@echo "Usage:"
 	@echo ""
@@ -6,22 +16,23 @@ all:
 	@echo "make install: install locally, not by apt-get"
 	@echo "make win32: win32 installer"
 	@echo ""
+	@echo "sudo = ${SUDO}, USER=${USER}"
 
 ppa:
 	@echo "to be done"
 
 install:
-	sudo mkdir -p /usr/share/perlshare
-	sudo cp *.pm *.pl /usr/share/perlshare
-	sudo mkdir -p /usr/share/perlshare/PerlShareCommon
-	sudo cp PerlShareCommon/* /usr/share/perlshare/PerlShareCommon
-	sudo mkdir -p /usr/share/perlshare/images
-	sudo cp images/* /usr/share/perlshare/images
-	sudo chown -R root:root /usr/share/perlshare
-	sudo chmod 755 /usr/share/perlshare/PerlShare.pl
-	sudo cp perlshare /usr/bin/perlshare
-	sudo chmod 755 /usr/bin/perlshare
-	
-
-
+	${SUDO} mkdir -p ${DESTDIR}/usr/share/perlshare
+	${SUDO} cp *.pm *.pl ${DESTDIR}/usr/share/perlshare
+	${SUDO} mkdir -p ${DESTDIR}/usr/share/perlshare/PerlShareCommon
+	${SUDO} cp PerlShareCommon/* ${DESTDIR}/usr/share/perlshare/PerlShareCommon
+	${SUDO} mkdir -p ${DESTDIR}/usr/share/perlshare/images
+	${SUDO} cp images/* ${DESTDIR}/usr/share/perlshare/images
+	${SUDO} chown -R root:root ${DESTDIR}/usr/share/perlshare
+	${SUDO} chmod 755 ${DESTDIR}/usr/share/perlshare/PerlShare.pl
+	${SUDO} mkdir -p ${DESTDIR}/usr/bin
+	${SUDO} chmod 755 ${DESTDIR}/usr/bin
+	${SUDO} cp perlshare ${DESTDIR}/usr/bin/perlshare
+	${SUDO} chmod 755 ${DESTDIR}/usr/bin/perlshare
+	${SUDO} (tar cf - share | (cd ${DESTDIR}/usr;tar --owner=root --group=root -x -f -))
 		

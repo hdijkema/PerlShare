@@ -1,0 +1,9 @@
+?package(perlshare):\
+        needs="X11"\
+        section="Applications/Network/File Transfer"\
+	hints="Internet"\
+	title="PerlShare"\
+	icon="/usr/share/pixmaps/perlshare.xpm"\
+	icon32x32="/usr/share/pixmaps/perlshare32.xpm"\
+	icon16x16="/usr/share/pixmaps/perlshare16.xpm"\
+	command="/usr/bin/perlshare"

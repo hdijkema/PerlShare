@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=0.1
+Name=PerlShare
+Comment=Your Private DropBox Alternative
+Exec=perlshare
+Type=Application
+Categories=GNOME;GTK;Network;FileTransfer
+Icon=perlshare
+Terminal=false
+StartupNotify=true
+X-MultipleArgs=false
+GenericName=File Synchronizer

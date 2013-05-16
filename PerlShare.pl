@@ -12,6 +12,14 @@ use PerlShareCommon::Dirs;
 use PerlShareCommon::Str;
 use PerlShareCommon::Log;
 
+my $VERSION = "0.1";
+
+my $option = shift @ARGV;
+if ($option eq "--version") {
+  print "$VERSION\n";
+  exit 0
+}
+
 use sigtrap qw(die normal-signals);
 
 die "Glib::Object thread safetly failed"

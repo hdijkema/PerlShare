@@ -2,7 +2,11 @@
 ifeq (${USER},root)
   SUDO=
 else
-  SUDO=sudo
+  ifeq (${USER},buildd)
+    SUDO=
+  else
+    SUDO=sudo
+  endif
 endif
 
 DESTDIR=/usr

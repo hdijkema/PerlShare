@@ -1,5 +1,5 @@
 Source: perlshare
-Section: sound
+Section: utils
 Priority: extra
 Maintainer: Hans Oesterholt (Lives in the Netherlands) <debian@oesterholt.net>
 Build-Depends: debhelper (>= 7.0.0), %%BUILDDEPENDS%%
@@ -9,4 +9,4 @@ Homepage: http://perlshare.oesterholt.net
 Package: perlshare
 Architecture: any
 Depends: %%DEPENDS%%
-Description: an other music player for Linux
+Description: A DropBox drop-in for private file sharing

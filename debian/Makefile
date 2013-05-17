@@ -1,6 +1,6 @@
 VERSION=$(shell ./get_version.sh)
 MYDIST=$(shell cat /etc/lsb-release | grep CODENAME | sed -e 's/[^=]*[=]//')
-SUBVERSION=1
+SUBVERSION=6
 PACKAGE=perlshare
 DEPENDS=libgtk2-perl,proxytunnel,corkscrew,liblockfile-simple-perl,inotify-tools,unison
 DEPENDS1=

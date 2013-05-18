@@ -31,6 +31,9 @@ die "Glib::Object thread safetly failed"
 	
 log_file($LOGFILE);
 
+# make sure that unison runs (it needs a $HOME/.unison directory)
+mkdir(global_unison_dir());
+
 ######################################################################################
 # Main 
 ######################################################################################

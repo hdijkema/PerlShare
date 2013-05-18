@@ -257,13 +257,15 @@ sub create_share() {
     print $fh "ignore = Path .*\n";
     print $fh "follow = Regex .*\n";
     print $fh "fastcheck = true\n";
-    #print $fh "copythreshold = 1000\n"; # Later, because it also needs
-    # special ssh handling
     print $fh "fat = true\n";
     print $fh "dontchmod = false\n";
     print $fh "perms = 0\n";
     print $fh "merge = Name * -> perl $perlsharemerge \"$sharedir\" \"PATH\" \"CURRENT1\" \"CURRENT2\" \"NEW\"\n";
     print $fh "servercmd = /usr/share/perlshare/unison_umask\n";
+    print $fh "copythreshold = 1000\n";
+    print $fh "copyprog = rsync -e \"ssh -F '$sshconfig' -l $email\" --inplace --compress\n";
+    # Maybe later, don't know the consequences yet.
+    #print $fh "copyprogrest = rsync -e \"ssh -F '$sshconfig' -l $email\" --partial --inplace --compress\n";
     close($fh);
     
     $self->{message} = "Success";
@@ -320,21 +322,34 @@ sub drop_local() {
   my $self = shift;
   my $share = shift;
   tie my %cfg, 'PerlShareCommon::Cfg', READ => global_conf(), WRITE => global_conf();
+  
   my $num_of_shares = $cfg{shares}{count};
   if (not(defined($num_of_shares))) { $num_of_shares = 0; }
+  
+  log_info("analyzing shares (num of shares = $num_of_shares)");
+  my @sharenames;
   my $i = 0;
-  my $k = 0;
-  while ($i < ($num_of_shares - 1)) {
-    if ($cfg{shares}{share}[$i] eq $share) {
-      # skip
-    } else {
-      $cfg{shares}{share}[$k] = $cfg{shares}{share}[$i];
-      $k += 1;
+  while ($i < $num_of_shares) {
+    my $shr = $cfg{shares}{share}[$i];
+    log_info("share = $share, shr = $shr, i=$i");
+    if ($cfg{shares}{share}[$i] ne $share) {
+      push @sharenames, $cfg{shares}{share}[$i];
     }
+    $i += 1; 
+  }
+  
+  log_info("deleting shares");
+  delete $cfg{shares};
+  
+  log_info("recreating shares");
+  $i = 0;
+  foreach my $shr (@sharenames) {
+    $cfg{shares}{share}[$i] = $shr;
     $i += 1;
   }
-  $cfg{shares}{share}[$i] = undef;
-  $cfg{shares}{count} = $num_of_shares - 1;
+  $cfg{shares}{count} = $i; 
+  log_info("done, num of shares = $i");
+  
   untie %cfg;
 }
 

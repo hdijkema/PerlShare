@@ -13,6 +13,10 @@ use PerlShareCommon::Str;
 use PerlShareCommon::Log;
 
 my $VERSION = "0.1";
+my $AUTHOR = "Hans Oesterholt";
+my $YEARS = "2013";
+my $WEBSITE = "http://perlshare.oesterholt.net";
+my $LOGFILE = log_dir()."/perlshare.log";
 
 my $option = shift @ARGV;
 if ($option eq "--version") {
@@ -25,7 +29,7 @@ use sigtrap qw(die normal-signals);
 die "Glib::Object thread safetly failed"
 	unless Glib::Object->set_threadsafe (TRUE);
 	
-log_file(log_dir()."/perlshare.log");
+log_file($LOGFILE);
 
 ######################################################################################
 # Main 
@@ -140,6 +144,8 @@ sub create_menu($$$) {
   my $menu = Gtk2::Menu->new();
   
   my $mnu_create_share = Gtk2::MenuItem->new("_Create share");
+  my $mnu_log = Gtk2::MenuItem->new("_View log");
+  my $mnu_about = Gtk2::MenuItem->new("_About PerlShare");
   my $mnu_quit = Gtk2::MenuItem->new("_Quit");
   
   $menu->append($mnu_create_share);
@@ -173,9 +179,14 @@ sub create_menu($$$) {
   }
   
   $menu->append(Gtk2::SeparatorMenuItem->new());
+  $menu->append($mnu_log);
+  $menu->append($mnu_about);
   $menu->append($mnu_quit);
   
   $mnu_quit->signal_connect("activate", sub { quit($shares); });
+  $mnu_about->signal_connect("activate", sub { about($shares); });
+  $mnu_log->signal_connect("activate", sub { view_log($shares); });
+    
   $mnu_create_share->signal_connect("activate", sub { create_share($shares, $status_icon, $data_queue); });
   
   $menu->show_all();
@@ -262,6 +273,11 @@ sub create_share($$) {
   my $vbox = $dialog->vbox;
   my $frame = Gtk2::Frame->new();
   $frame->add($table);
+  
+  my $logo_file = images_dir()."/perlshare_logo_small.png";
+  my $logo = Gtk2::Image->new_from_file($logo_file);
+  
+  $vbox->pack_start($logo,0,0,2);
   $vbox->pack_start($frame,0,0,4);
   
   $vbox->show_all();
@@ -378,6 +394,36 @@ sub share_drop($$) {
   if ($response eq "yes") {
     $shares->drop_local($share);
     create_menu($shares, $status_icon, $data_queue);
+  }
+}
+
+sub about($) {
+  my $shares = shift;
+  my $dlg = Gtk2::AboutDialog->new();
+  $dlg->set_program_name("PerlShare");
+  $dlg->set_website($WEBSITE);
+  $dlg->set_version("Version $VERSION");
+  my $w = 300;
+  my $h = 100;
+  my $name = "perlshare_logo.png";
+  my $pb = Gtk2::Gdk::Pixbuf->new_from_file_at_size(images_dir()."/$name", $w, $h);  
+  $dlg->set_logo($pb);
+  $dlg->set_copyright("(c) $YEARS $AUTHOR. Distributed under GPLv3");
+  $dlg->run();
+  $dlg->destroy();
+}
+
+sub view_log($) {
+  my $shares = shift;
+  my $logfile = $LOGFILE;
+  my $os = $^O;
+  if ($os =~ /^MSWin/) {
+    $logfile=~s%/%\\%g;
+    system("start explorer \"$logfile\"");
+  } elsif ($os eq "darwin") {
+    system("open '$logfile'");
+  } else {
+    system("xdg-open '$logfile'");
   }
 }
 

@@ -381,6 +381,16 @@ sub check_last_sync() {
   my $remote_share = $cfg{data}{$share}{remote};
   untie %cfg;
 
+  # Only work this through when the directory is present
+  # So mobile devices that are not connected will be skipped
+  {
+    my $localshr = perlshare_dir($local_share);
+    if (! -d $localshr) {
+      log_warn("Local directory for $local_share not present");
+      return (-2, undef, undef);
+    }
+  }
+  
   log_info("checking share '$share', host=$host, email=$email");
   # We need to check for each top directory if the count has changed.
   
@@ -487,48 +497,60 @@ sub synchronizer() {
       log_info("Starting synchronizer for all shares");
       my $first_time = 1;
       while ( 1 ) {
+        log_info("looping");
         my @S = $shares->get_shares();
         foreach my $share (@S) {
           tie my %cfg, 'PerlShareCommon::Cfg', READ => global_conf();
           my $local_share = $cfg{data}{$share}{local};
           untie %cfg;
           my $dir = perlshare_dir($local_share);
-          my $watcher = $shares->get_assoc($share, "watcher");
-          if (defined($watcher)) {
-            if ($watcher->get_directory_changes()) {
-              open my $fh, "<$dir/.count";
-              my $cnt = <$fh>;
-              log_info("count = $cnt");
-              trim($cnt);
-              close($fh);
-              $cnt += 1;
-              open $fh, ">$dir/.count";
-              print $fh "$cnt\n";
-              close($fh);
-            }
-          } else {
-            $watcher = new PerlShareCommon::WatchDirectoryTree($dir);
-            $shares->associate($share, "watcher", $watcher);
-          }
           
-          my ($sync, $remote_count, $local_count) = $shares->check_last_sync($share);
-          if ($sync == -1) { 
-            # We cannot 
-            $cb->($share, "disconnected", -1);
-          } elsif ($sync || $first_time) {
-            # we can connect, and need to sync
-            $cb->($share, "connected", 0);
-            $shares->sync_now($share, $cb, $remote_count, $local_count);
-          } else {
-            # we can connect, but don't need to sync
-            $cb->($share, "connected", 0);
-          }
-         
-          log_info("done syncing"); 
-          # flush watcher after sync
-          $watcher->get_directory_changes();
+          # Now check if we have this directory. It could be disconnected
+          # if it is a directory on a mobile device.
+          
+          if (-d $dir) {
+            # We have this directory, so we can do things with it.
 
-          log_info("got directory changes");
+            my $watcher = $shares->get_assoc($share, "watcher");
+            if (defined($watcher)) {
+              if ($watcher->get_directory_changes()) {
+                open my $fh, "<$dir/.count";
+                my $cnt = <$fh>;
+                log_info("count = $cnt");
+                trim($cnt);
+                close($fh);
+                $cnt += 1;
+                open $fh, ">$dir/.count";
+                print $fh "$cnt\n";
+                close($fh);
+              }
+            } else {
+              $watcher = new PerlShareCommon::WatchDirectoryTree($dir);
+              $shares->associate($share, "watcher", $watcher);
+            }
+            
+            my ($sync, $remote_count, $local_count) = $shares->check_last_sync($share);
+            if ($sync == -1) { 
+              # We cannot 
+              $cb->($share, "disconnected", -1);
+            } elsif ($sync || $first_time) {
+              # we can connect, and need to sync
+              $cb->($share, "connected", 0);
+              $shares->sync_now($share, $cb, $remote_count, $local_count);
+            } else {
+              # we can connect, but don't need to sync
+              $cb->($share, "connected", 0);
+            }
+           
+            log_info("done syncing"); 
+            # flush watcher after sync
+            $watcher->get_directory_changes();
+  
+            log_info("got directory changes");
+          } else {
+            log_info("This directory is not present");
+            $cb->($share, "not present", -1);
+          }
         }
         $first_time = 0;
         log_info("sleeping ".$self->{sleep_time}." seconds");

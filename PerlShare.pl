@@ -86,6 +86,9 @@ Glib::Timeout->add(100, sub {
       } elsif ($state eq "connected") {
         $shares->associate($share, "code", 0);
         $code = 0;
+      } elsif ($state eq "not present") {
+        $shares->associate($share, "code", -2);
+        $code = -2;
       }
       $status_icon->set_collision($code > 0);
   
@@ -93,7 +96,7 @@ Glib::Timeout->add(100, sub {
         $status_icon->begin_sync();
       } elsif ($state eq "running") {
         $status_icon->activity();
-      } elsif ($state eq "done" || $state eq "disconnected" || $state eq "connected") {
+      } elsif ($state eq "done" || $state eq "disconnected" || $state eq "connected" || $state eq "not present") {
         $shares->associate($share, "code", $code);
         
         #if ($state eq "done") {
@@ -114,12 +117,14 @@ Glib::Timeout->add(100, sub {
         
         my $image_menu_item = $shares->get_assoc($share,"menu-item");
         my $img = ($code > 0) ? image_nok() :
-                    (($code < 0) ? image_disconnected() : image_ok());
+                    (($code == -1) ? image_disconnected() : 
+                      (($code == -2) ? image_not_present() : image_ok()));
         $image_menu_item->set_image($img);
       }
       
       $data = $data_queue->dequeue_nb();
     }
+
     if ($data eq "quit") {
       return 0;
     } else {
@@ -212,6 +217,10 @@ sub image_nok() {
 sub image_disconnected() {
   return get_scaled_image("tray_gray.png");
   #return Gtk2::Image->new_from_file(images_dir()."/tray_gray.png");
+}
+
+sub image_not_present() {
+  return get_scaled_image("tray_not_present.png");
 }
 
 sub get_scaled_image($) {

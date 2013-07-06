@@ -2,9 +2,9 @@ VERSION=$(shell ./get_version.sh)
 MYDIST=$(shell cat /etc/lsb-release | grep CODENAME | sed -e 's/[^=]*[=]//')
 SUBVERSION=8
 PACKAGE=perlshare
-DEPENDS=libgtk2-perl,proxytunnel,corkscrew,liblockfile-simple-perl,inotify-tools,unison,libfile-homedir-perl
+DEPENDS=libgtk2-perl,proxytunnel,corkscrew,liblockfile-simple-perl,inotify-tools,unison,libfile-homedir-perl,libgtk2-appindicator-perl
 DEPENDS1=
-BUILDDEPENDS=libgtk2-perl,proxytunnel,corkscrew,liblockfile-simple-perl,inotify-tools,unison,libfile-homedir-perl
+BUILDDEPENDS=libgtk2-perl,proxytunnel,corkscrew,liblockfile-simple-perl,inotify-tools,unison,libfile-homedir-perl,libgtk2-appindicator-perl
 #DISTROS=precise quantal raring saucy
 DISTROS=raring saucy
 DISTROS1=maverick lucid

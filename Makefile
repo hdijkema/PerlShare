@@ -39,4 +39,7 @@ install:
 	${SUDO} cp perlshare ${DESTDIR}/usr/bin/perlshare
 	${SUDO} chmod 755 ${DESTDIR}/usr/bin/perlshare
 	${SUDO} (tar cf - share | (cd ${DESTDIR}/usr;tar --owner=root --group=root -x -f -))
+
+clean:
+	rm -f *~
 		
